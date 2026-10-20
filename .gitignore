@@ -12,6 +12,7 @@ datasets/
 
 # Training outputs
 checkpoints/
+experiments/
 runs/
 wandb/
 mlruns/
