@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Datasets — never commit images or reports (size + dataset licences)
+data/
+datasets/
+*.dcm
+
+# Training outputs
+checkpoints/
+runs/
+wandb/
+mlruns/
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.keras
+
+# Secrets / local config
+.env
+
+# Local-only project notes
+CXR_Report_Project_Roadmap.pdf
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
