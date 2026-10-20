@@ -6,8 +6,8 @@ venv/
 .ipynb_checkpoints/
 
 # Datasets — never commit images or reports (size + dataset licences)
-data/
-datasets/
+/data/
+/datasets/
 *.dcm
 
 # Training outputs
