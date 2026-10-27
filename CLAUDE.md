@@ -30,7 +30,7 @@ PyTorch / torchvision (CUDA, cu130 wheels), numpy, pandas, scikit-learn. Python 
 - Split by patient, never by image.
 
 ## Status
-Phase: 0 — Step 0.1: inventory module done (`python -m src.data.inventory`); next: write `reports/inventory.md`, then Step 0.2 (patient-level split)
-What works: environment (torch 2.14.1+cu130, GPU detected), IU X-Ray in `data/raw/`, `src/data/inventory.py` builds reports (3,955×9) + images (7,470×5) tables
+Phase: 0 — Steps 0.1 (inventory) and 0.2 (split) done; next: Step 0.3 (labels from MeSH)
+What works: environment (torch 2.14.1+cu130, GPU detected), IU X-Ray in `data/raw/`, `src/data/inventory.py` (reports 3,955×9, images 7,470×5), `src/data/splits.py` (`python -m src.data.splits`: report-level 70/15/15 from `configs/base.yaml`, seed 42 → `data/interim/{train,val,test}.csv` = 2,695/577/579 reports, 5,231/1,120/1,119 images), `python -m pytest` (3 tests pass)
 What doesn't work: —
-Open decisions: no patient ID in the XML (Step 0.2); frontal vs lateral not labelled (Phase 1)
+Open decisions: no patient ID — `IM-####` is an export counter (`notebooks/02_splits.ipynb`), so split is by report (limitation: one person's reports may cross sets); normal share train/val/test 35.5/34.7/38.5% — recheck per category in 0.3; frontal vs lateral not labelled (Phase 1)

@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 venv/
 .ipynb_checkpoints/
+.pytest_cache/
 
 # Datasets — never commit images or reports (size + dataset licences)
 /data/
