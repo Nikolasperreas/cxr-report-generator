@@ -1,0 +1,77 @@
+# MeSH term -> CheXpert-style category rulebook (Step 0.3).
+# "Head" matches every term whose first part is Head (e.g. Cardiomegaly/mild).
+# "Head/word" also needs "word" somewhere after the head
+# (e.g. Costophrenic Angle/blunted matches Costophrenic Angle/right/blunted/mild).
+# Upper/lower case and extra spaces are ignored. Category order = label column order.
+
+No Finding:
+  - normal
+
+Enlarged Cardiomediastinum:
+  - Mediastinum/prominent
+  - Mediastinum/enlarged
+
+Cardiomegaly:
+  - Cardiomegaly
+  - Cardiac Shadow/enlarged
+
+Lung Opacity:
+  - Opacity
+  - Airspace Disease
+  - Density
+  - Infiltrate
+  # interstitial / fibrosis: streaky whiter lung, counted as opacity
+  - Markings/interstitial
+  - Lung Diseases, Interstitial
+  - Pulmonary Fibrosis
+  - Fibrosis
+
+Lung Lesion:
+  - Nodule
+  - Mass
+  - Cavitation
+  - Cysts/lung
+  # granulomas (old healed infection, harmless) left out on purpose
+
+Edema:
+  - Pulmonary Edema
+  - Pulmonary Congestion
+
+Consolidation:
+  - Consolidation
+
+Pneumonia:
+  - Pneumonia
+
+Atelectasis:
+  - Pulmonary Atelectasis
+
+Pneumothorax:
+  - Pneumothorax
+  - Hydropneumothorax
+  - Hemopneumothorax
+
+Pleural Effusion:
+  - Pleural Effusion
+  - Hemothorax
+  - Hydropneumothorax
+  - Hemopneumothorax
+  # blunted angle = classic sign of a small effusion
+  - Costophrenic Angle/blunted
+  - Sulcus/blunted
+  - Pleura/blunted
+
+Pleural Other:
+  - Thickening/pleura
+  - Cicatrix/pleura
+
+Fracture:
+  - Fractures, Bone
+
+Support Devices:
+  - Catheters, Indwelling
+  - Implanted Medical Device
+  - Surgical Instruments
+  - Tube, Inserted
+  - Medical Device
+  - Stents
