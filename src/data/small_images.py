@@ -1,3 +1,5 @@
+"""Squash the X-rays to small grayscale arrays and save one .npz per split."""
+
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -62,8 +64,6 @@ def main():
         #       read its csv, build the arrays, save them
         print(split, X.shape, Y.shape)
     # 4. print the shapes so you can see it worked
-
-    return
 
 
 if __name__ == "__main__":
