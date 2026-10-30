@@ -121,12 +121,14 @@ Labeled reports in the Step 0.2 split (reports with images only): train 2,634, v
   threshold for Pneumothorax on val (Phase 1.6) is not possible with one example.
 - The common categories are spread reasonably. The largest gap, Lung Opacity at 14.8% in test vs 18.5% in train,
   is about 2 standard errors; among 14 categories, one gap of that size is expected by chance.
+- **Decision (2026-10-29): keep this split.** A re-split stratified by label would still leave only about 4
+  Pneumothorax cases per set, and would make the split depend on the rulebook. Consequences: every per-class score
+  is reported next to its number of positives, and no Pneumothorax threshold is tuned on val.
 
 ## 7. Open questions
 
 | Question | Where it gets decided |
 |---|---|
-| Rare categories are spread unevenly by the random split (Pneumothorax: 1 in val). Keep it, or re-split stratified by label? | before Phase 1 |
 | Add frequent IU findings outside the 14 (granuloma, degenerative spine, hyperinflation) as extra categories? | after Phase 1 error analysis |
 | Rare categories (27–42 reports) will give noisy per-class metrics: how to report them | Steps 0.4 and 1.6 |
 | Text labeler for the clinical F1 must handle negations ("no pneumothorax") | Phase 4 |
