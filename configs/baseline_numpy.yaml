@@ -1,2 +1,7 @@
 # Step 0.5: numpy logistic-regression baseline.
+# Full-batch gradient descent: every step uses all training images.
 image_size: 32  # every X-ray is squashed to image_size x image_size grayscale
+seed: 42  # passed to set_seeds
+learning_rate: 0.01  # step size of gradient descent; judge it by the cost curve
+num_iterations: 2000  # number of gradient-descent steps
+threshold: 0.5  # probability at or above which the model says "yes"
