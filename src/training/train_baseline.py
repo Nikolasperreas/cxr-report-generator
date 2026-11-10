@@ -8,7 +8,6 @@ import json
 from datetime import datetime
 
 import numpy as np
-import pandas as pd
 
 from src.data.inventory import PROJECT_ROOT
 from src.data.labels import LABEL_MAP_PATH
@@ -16,9 +15,7 @@ from src.data.small_images import CONFIG_PATH, PROCESSED_DIR
 from src.data.splits import load_config
 from src.evaluation.metrics_cls import classification_metrics
 from src.models.baseline_numpy import initialize, optimize, predict_proba, propagate
-from src.utils import set_seeds
-
-RESULTS_PATH = PROJECT_ROOT / "experiments" / "results.csv"
+from src.utils import RESULTS_PATH, append_result, set_seeds
 
 
 def main():
@@ -75,7 +72,9 @@ def main():
         "model": "baseline_numpy",
         "config_path": CONFIG_PATH.relative_to(PROJECT_ROOT).as_posix(),
         "seed": cfg["seed"],
-        "config": json.dumps(cfg),  # the whole config as text: later edits can't lose it
+        "config": json.dumps(
+            cfg
+        ),  # the whole config as text: later edits can't lose it
         "final_cost": final_cost,
         "train_macro_f1": table_train.loc["macro", "f1"],
         "val_macro_f1": table_val.loc["macro", "f1"],
@@ -86,11 +85,7 @@ def main():
         "comment": args.comment,
     }
 
-    RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    # header only when the file is new, so every run adds exactly one line
-    pd.DataFrame([row]).round(4).to_csv(
-        RESULTS_PATH, mode="a", header=not RESULTS_PATH.exists(), index=False
-    )
+    append_result(row)
     print(
         f"val macro F1 {row['val_macro_f1']:.3f}, micro F1 {row['val_micro_f1']:.3f}, "
         f"macro AUC {row['val_macro_auc']:.3f} -> row added to {RESULTS_PATH}"
