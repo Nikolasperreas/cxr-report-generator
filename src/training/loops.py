@@ -1,7 +1,12 @@
 """Training and evaluation loops, shared by every PyTorch model (SmallCNN now, ResNet/MobileNet later)."""
 
+import copy
+import time
+
 import torch
 from torch import nn
+
+from src.evaluation.metrics_cls import classification_metrics
 
 
 # one epoch is to do a forward backward pass from the whole dataset
@@ -36,7 +41,9 @@ def recalibrate_batchnorm(model, loader, device):
     weights: one pass over loader, no weight updates. Call it right before evaluate.
     loader must give un-augmented train images (never val: the model would learn from val)."""
     # 1. find the BatchNorm layers (model.modules() also looks inside nested blocks)
-    bn_layers = [layer for layer in model.modules() if isinstance(layer, nn.BatchNorm2d)]
+    bn_layers = [
+        layer for layer in model.modules() if isinstance(layer, nn.BatchNorm2d)
+    ]
     old_momentum = [layer.momentum for layer in bn_layers]
     # 2. forget the stored statistics; momentum None = plain average, not a moving average
     for layer in bn_layers:
@@ -85,3 +92,56 @@ def evaluate(model, loader, loss_fn, device):
     y_prob = torch.cat(all_probs).numpy()
     return total_loss / len(loader.dataset), y_true, y_prob
     # 5. return the total / number of examples, y_true, y_prob
+
+
+def fit(
+    model,
+    train_loader,
+    val_loader,
+    loss_fn,
+    optimizer,
+    device,
+    epochs,
+    threshold,
+    categories,
+    recalibrate_loader=None,
+):
+    """Train for `epochs`, evaluating val after every epoch; keep the weights of the epoch with
+    the lowest val loss. recalibrate_loader: un-augmented train images -> BatchNorm statistics
+    recomputed before every val evaluation; None -> skipped (a model whose BatchNorm is frozen).
+    Returns (best_state, best_epoch, best_val_loss, history); history = one dict per epoch."""
+    best_val_loss = float("inf")
+    best_epoch = 0
+    best_state = None
+    history = []
+    for epoch in range(1, epochs + 1):
+        start = time.time()
+        train_loss = train_one_epoch(model, train_loader, loss_fn, optimizer, device)
+        if recalibrate_loader is not None:
+            recalibrate_batchnorm(
+                model, recalibrate_loader, device
+            )  # BatchNorm memory for the current weights
+        val_loss, y_val, p_val = evaluate(model, val_loader, loss_fn, device)
+        table = classification_metrics(y_val, p_val, threshold, categories)
+        val_f1 = table.loc["macro", "f1"]
+        val_auc = table.loc["macro", "auc"]
+        seconds = time.time() - start
+        print(
+            f"epoch {epoch:2d}  train {train_loss:.4f}  val {val_loss:.4f}  "
+            f"macro F1 {val_f1:.3f}  macro AUC {val_auc:.3f}  {seconds:.1f} s"
+        )
+        history.append(
+            {
+                "epoch": epoch,
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "val_macro_f1": val_f1,
+                "val_macro_auc": val_auc,
+                "seconds": seconds,
+            }
+        )
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_epoch = epoch
+            best_state = copy.deepcopy(model.state_dict())
+    return best_state, best_epoch, best_val_loss, history

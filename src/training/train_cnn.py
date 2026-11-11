@@ -5,9 +5,7 @@ Run: python -m src.training.train_cnn --comment "one sentence about this run"
 """
 
 import argparse
-import copy
 import json
-import time
 from datetime import datetime
 
 import pandas as pd
@@ -20,7 +18,7 @@ from src.data.pipeline import make_loader
 from src.data.splits import load_config
 from src.evaluation.metrics_cls import classification_metrics
 from src.models.encoders import SmallCNN
-from src.training.loops import evaluate, train_one_epoch, recalibrate_batchnorm
+from src.training.loops import evaluate, fit
 from src.utils import RESULTS_PATH, append_result, set_seeds
 from src.data.augment import build_train_transform
 
@@ -67,41 +65,19 @@ def main():
 
     # Part B: train, keep the best epoch
 
-    # 5. best_val_loss = float("inf"), best_epoch = 0, best_state = None, history = []
-    best_val_loss = float("inf")
-    best_epoch = 0
-    best_state = None
-    history = []
-    # 6. for epoch in range(1, epochs + 1):          (numbered 1..30, not 0..29)
-    for epoch in range(1, cfg["epochs"] + 1):
-        start = time.time()
-        train_loss = train_one_epoch(model, train_loader, loss_fn, optimizer, device)
-        recalibrate_batchnorm(
-            model, train_plain_loader, device
-        )  # BatchNorm memory for the current weights
-        val_loss, y_val, p_val = evaluate(model, val_loader, loss_fn, device)
-        table = classification_metrics(y_val, p_val, cfg["threshold"], categories)
-        val_f1 = table.loc["macro", "f1"]
-        val_auc = table.loc["macro", "auc"]
-        seconds = time.time() - start
-        print(
-            f"epoch {epoch:2d}  train {train_loss:.4f}  val {val_loss:.4f}  "
-            f"macro F1 {val_f1:.3f}  macro AUC {val_auc:.3f}  {seconds:.1f} s"
-        )
-        history.append(
-            {
-                "epoch": epoch,
-                "train_loss": train_loss,
-                "val_loss": val_loss,
-                "val_macro_f1": val_f1,
-                "val_macro_auc": val_auc,
-                "seconds": seconds,
-            }
-        )
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_epoch = epoch
-            best_state = copy.deepcopy(model.state_dict())
+    # 5-6. train for `epochs`, keep the epoch with the lowest val loss (loop in loops.fit)
+    best_state, best_epoch, best_val_loss, history = fit(
+        model,
+        train_loader,
+        val_loader,
+        loss_fn,
+        optimizer,
+        device,
+        cfg["epochs"],
+        cfg["threshold"],
+        categories,
+        recalibrate_loader=train_plain_loader,  # SmallCNN's BatchNorm trains -> recompute
+    )
 
     # 7.
     model.load_state_dict(best_state)
