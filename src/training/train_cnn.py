@@ -20,10 +20,11 @@ from src.data.pipeline import make_loader
 from src.data.splits import load_config
 from src.evaluation.metrics_cls import classification_metrics
 from src.models.encoders import SmallCNN
-from src.training.loops import evaluate, train_one_epoch
+from src.training.loops import evaluate, train_one_epoch, recalibrate_batchnorm
 from src.utils import RESULTS_PATH, append_result, set_seeds
+from src.data.augment import build_train_transform
 
-CONFIG_PATH = PROJECT_ROOT / "configs" / "small_cnn.yaml"
+
 CHECKPOINT_DIR = PROJECT_ROOT / "checkpoints"
 HISTORY_DIR = PROJECT_ROOT / "experiments" / "history"
 
@@ -34,9 +35,12 @@ def main():
     # 1. read --comment from the command line (as in train_baseline)
     parser = argparse.ArgumentParser()
     parser.add_argument("--comment", required=True)
+    parser.add_argument("--config", default="configs/small_cnn.yaml")
+
     args = parser.parse_args()
     # 2. read the config, set the seeds; categories; device ("cuda" if available, else "cpu");
-    cfg = load_config(CONFIG_PATH)
+    config_path = PROJECT_ROOT / args.config
+    cfg = load_config(config_path)
     categories = list(load_config(LABEL_MAP_PATH))
 
     set_seeds(cfg["seed"])
@@ -47,9 +51,13 @@ def main():
     # 3. loaders: train and val (image_size and batch_size from the config)
     image_size = cfg["image_size"]
     batch_size = cfg["batch_size"]
+    transform = build_train_transform(
+        cfg.get("augmentation")
+    )  # no section (small_cnn.yaml) -> None
+    train_loader = make_loader("train", image_size, batch_size, transform)
+    val_loader = make_loader("val", image_size, batch_size, None)  # never augmented
+    train_plain_loader = make_loader("train", image_size, batch_size, None)
 
-    train_loader = make_loader("train", image_size, batch_size, None)
-    val_loader = make_loader("val", image_size, batch_size, None)
     # 4. model = SmallCNN(channels from the config, number of categories), on the device;
     model = SmallCNN(cfg["channels"], len(categories))
     #    loss_fn = BCEWithLogitsLoss; optimizer = Adam with the config's learning_rate
@@ -68,6 +76,9 @@ def main():
     for epoch in range(1, cfg["epochs"] + 1):
         start = time.time()
         train_loss = train_one_epoch(model, train_loader, loss_fn, optimizer, device)
+        recalibrate_batchnorm(
+            model, train_plain_loader, device
+        )  # BatchNorm memory for the current weights
         val_loss, y_val, p_val = evaluate(model, val_loader, loss_fn, device)
         table = classification_metrics(y_val, p_val, cfg["threshold"], categories)
         val_f1 = table.loc["macro", "f1"]
@@ -98,7 +109,10 @@ def main():
     checkpoint_path = CHECKPOINT_DIR / f"small_cnn_{run_id}.pt"
     torch.save(best_state, checkpoint_path)
     # 8.
-    train_loss_kept, y_train, p_train = evaluate(model, train_loader, loss_fn, device)
+
+    train_loss_kept, y_train, p_train = evaluate(
+        model, train_plain_loader, loss_fn, device
+    )
     val_loss_kept, y_val, p_val = evaluate(model, val_loader, loss_fn, device)
     table_train = classification_metrics(y_train, p_train, cfg["threshold"], categories)
     table_val = classification_metrics(y_val, p_val, cfg["threshold"], categories)
@@ -113,12 +127,13 @@ def main():
     HISTORY_DIR.mkdir(parents=True, exist_ok=True)
     history_path = HISTORY_DIR / f"small_cnn_{run_id}.csv"
     pd.DataFrame(history).to_csv(history_path, index=False)
+    table_val.to_csv(HISTORY_DIR / f"small_cnn_{run_id}_val_classes.csv")
 
     # 10. build one row, append it to experiments/results.csv
     row = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "model": "small_cnn",
-        "config_path": CONFIG_PATH.relative_to(PROJECT_ROOT).as_posix(),
+        "config_path": config_path.relative_to(PROJECT_ROOT).as_posix(),
         "seed": cfg["seed"],
         # the whole config as text: later edits can't lose it
         "config": json.dumps(cfg),

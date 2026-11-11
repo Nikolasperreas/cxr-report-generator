@@ -1,6 +1,7 @@
 """Training and evaluation loops, shared by every PyTorch model (SmallCNN now, ResNet/MobileNet later)."""
 
 import torch
+from torch import nn
 
 
 # one epoch is to do a forward backward pass from the whole dataset
@@ -28,6 +29,28 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device):
 
     # 4. return the total divided by the number of examples
     return total_loss / len(loader.dataset)
+
+
+def recalibrate_batchnorm(model, loader, device):
+    """Recompute every BatchNorm layer's stored mean and variance for the model's current
+    weights: one pass over loader, no weight updates. Call it right before evaluate.
+    loader must give un-augmented train images (never val: the model would learn from val)."""
+    # 1. find the BatchNorm layers (model.modules() also looks inside nested blocks)
+    bn_layers = [layer for layer in model.modules() if isinstance(layer, nn.BatchNorm2d)]
+    old_momentum = [layer.momentum for layer in bn_layers]
+    # 2. forget the stored statistics; momentum None = plain average, not a moving average
+    for layer in bn_layers:
+        layer.reset_running_stats()
+        layer.momentum = None
+    # 3. show every image once: train mode so BatchNorm records the statistics,
+    #    no backward and no optimizer step so the weights stay exactly the same
+    model.train()
+    with torch.no_grad():
+        for images, _ in loader:
+            model(images.to(device))
+    # 4. put the momentum back, so the next epoch trains exactly as before
+    for layer, momentum in zip(bn_layers, old_momentum):
+        layer.momentum = momentum
 
 
 def evaluate(model, loader, loss_fn, device):
