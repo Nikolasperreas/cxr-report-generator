@@ -1,0 +1,22 @@
+# Step 1.4: ResNet50 pretrained on ImageNet (ResNet50Classifier, src/models/encoders.py),
+# two-stage transfer learning; same images and augmentation as small_cnn_aug.yaml.
+seed: 42
+image_size: 224
+batch_size: 32
+weights: IMAGENET1K_V1  # torchvision's classic ImageNet weights
+threshold: 0.5
+augmentation:  # train images only; val and test are never augmented
+  rotation_degrees: 10
+  translate: 0.05
+  scale: [0.9, 1.1]
+  brightness: 0.2
+  contrast: 0.2
+  horizontal_flip: false
+stage1:  # frozen backbone: only the head trains
+  learning_rate: 0.001
+  epochs: 30
+stage2:  # unfreeze the top of the backbone: head + layer4 train
+  unfreeze: [layer4]
+  learning_rate: 0.00001
+  epochs: 30
+    
