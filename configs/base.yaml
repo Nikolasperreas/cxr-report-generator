@@ -1,3 +1,20 @@
-{'split' : {'seed':42, 'ratios': { 'train': 0.7, 'val':0.15, 'test':0.15}}}
-
+split:
+  seed: 42
+  ratios:
+    train: 0.7
+    val: 0.15
+    test: 0.15
+efficiency:  # Step 1.5: satisficing metrics, thresholds written BEFORE measuring (2026-11-12)
+  # use case: drafts a report on an ordinary hospital PC without a GPU, while the radiologist opens the study
+  optimize: val_macro_auc  # the one metric we maximize
+  max_latency_ms: 100      # per image, CPU, batch 1, forward pass only, median after warm-up
+  max_size_mb: 30          # saved weights file (float32), 1 MB = 1,000,000 bytes
+  latency_threads: 4       # fixed, so the number doesn't depend on this laptop's core count
+  latency_warmup: 10
+  latency_runs: 50
+  seed: 42  # seeds at every entry point (only the random latency input depends on it)
+  checkpoints:  # the 3x3 table: each encoder's kept model from its best run on val
+    - checkpoints/small_cnn_20261111-113806.pt
+    - checkpoints/resnet50_stage2_20261112-112735.pt
+    - checkpoints/mobilenet_v2_stage2_20261112-160055.pt
 

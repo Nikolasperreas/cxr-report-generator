@@ -1,0 +1,4 @@
+model,val_macro_auc,size_mb,latency_ms,size_ok,latency_ok,checkpoint
+small_cnn,0.7733,1.600131,5.150299984961748,True,True,checkpoints/small_cnn_20261111-113806.pt
+resnet50_stage2,0.7542,94.464827,38.13594998791814,False,True,checkpoints/resnet50_stage2_20261112-112735.pt
+mobilenet_v2_stage2,0.7813,9.212295,8.277649991214275,True,True,checkpoints/mobilenet_v2_stage2_20261112-160055.pt

@@ -1,0 +1,23 @@
+# Step 1.5: MobileNetV2 pretrained on ImageNet (MobileNetV2Classifier, src/models/encoders.py),
+# two-stage transfer learning; everything except the encoder as resnet50.yaml.
+# Run: python -m src.training.train_pretrained --config configs/mobilenet_v2.yaml --comment "..."
+encoder: mobilenet_v2  # a key of PRETRAINED_ENCODERS in src/models/encoders.py
+seed: 42
+image_size: 224
+batch_size: 32
+weights: IMAGENET1K_V1  # the original recipe, same generation as ResNet50's V1
+threshold: 0.5
+augmentation:  # train images only; val and test are never augmented
+  rotation_degrees: 10
+  translate: 0.05
+  scale: [0.9, 1.1]
+  brightness: 0.2
+  contrast: 0.2
+  horizontal_flip: false
+stage1:  # frozen backbone: only the head trains
+  learning_rate: 0.001
+  epochs: 30
+stage2:  # unfreeze the last 7x7 stage (like ResNet's layer4): head + features.14-18 train
+  unfreeze: [features.14, features.15, features.16, features.17, features.18]
+  learning_rate: 0.00001
+  epochs: 30

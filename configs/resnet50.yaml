@@ -1,5 +1,7 @@
 # Step 1.4: ResNet50 pretrained on ImageNet (ResNet50Classifier, src/models/encoders.py),
 # two-stage transfer learning; same images and augmentation as small_cnn_aug.yaml.
+# Run: python -m src.training.train_pretrained --config configs/resnet50.yaml --comment "..."
+encoder: resnet50  # a key of PRETRAINED_ENCODERS in src/models/encoders.py
 seed: 42
 image_size: 224
 batch_size: 32

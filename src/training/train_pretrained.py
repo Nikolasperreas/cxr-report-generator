@@ -1,10 +1,12 @@
-"""Train ResNet50 (Step 1.4) in two stages. Stage 1: frozen ImageNet backbone, only the head
-trains. Stage 2: from the kept stage-1 weights, the stages in stage2.unfreeze train too, at a
-lower learning rate. Each stage keeps its epoch with the lowest val loss, scores it on train
-and val, saves its weights and appends one row to experiments/results.csv.
-Run: python -m src.training.train_resnet --comment "one sentence about this run"
+"""Train an ImageNet-pretrained encoder in two stages (Step 1.4 ResNet50, Step 1.5 MobileNetV2).
+The config's `encoder` picks the network: a key of PRETRAINED_ENCODERS in src/models/encoders.py.
+Stage 1: frozen ImageNet backbone, only the head trains. Stage 2: from the kept stage-1 weights,
+the parts in stage2.unfreeze train too, at a lower learning rate. Each stage keeps its epoch with
+the lowest val loss, scores it on train and val, saves its weights and appends one row to
+experiments/results.csv.
+Run: python -m src.training.train_pretrained --config configs/resnet50.yaml --comment "one sentence about this run"
      (stage 2 only, from a saved stage 1:)
-     python -m src.training.train_resnet --stage1-checkpoint checkpoints/resnet50_stage1_<run_id>.pt --comment "..."
+     python -m src.training.train_pretrained --config configs/resnet50.yaml --stage1-checkpoint checkpoints/resnet50_stage1_<run_id>.pt --comment "..."
 """
 
 import argparse
@@ -21,7 +23,7 @@ from src.data.labels import LABEL_MAP_PATH
 from src.data.pipeline import make_loader
 from src.data.splits import load_config
 from src.evaluation.metrics_cls import classification_metrics
-from src.models.encoders import ResNet50Classifier
+from src.models.encoders import PRETRAINED_ENCODERS
 from src.training.loops import evaluate, fit
 from src.utils import RESULTS_PATH, append_result, set_seeds
 from src.data.augment import build_train_transform
@@ -51,7 +53,8 @@ def score_and_log(
 ):
     """Steps 7-10 for one stage: load the kept weights into the model, score them on plain
     train and val, save checkpoint + history + per-class val table, append one results row.
-    name: "resnet50_stage1" or "resnet50_stage2" (file names and the row's model).
+    name: "<encoder>_stage1" or "<encoder>_stage2", e.g. "resnet50_stage1" (file names and the
+    row's model).
     init_checkpoint: the checkpoint this stage started from (None for stage 1).
     Returns the checkpoint path as written in the row (checkpoints/...pt)."""
     # 7. fit leaves the LAST epoch's weights in the model -> load the kept ones, save them
@@ -113,10 +116,11 @@ def score_and_log(
 def main():
     # Part A: setup
 
-    # 1. read --comment (and optionally --config, --stage1-checkpoint) from the command line
+    # 1. read --comment, --config (and optionally --stage1-checkpoint) from the command line
     parser = argparse.ArgumentParser()
     parser.add_argument("--comment", required=True)
-    parser.add_argument("--config", default="configs/resnet50.yaml")
+    # required: a default would silently train that encoder whenever --config is forgotten
+    parser.add_argument("--config", required=True)  # e.g. configs/resnet50.yaml
     parser.add_argument(
         "--stage1-checkpoint", default=None
     )  # given -> skip stage 1, start stage 2 from it
@@ -140,8 +144,9 @@ def main():
     val_loader = make_loader("val", image_size, batch_size, None)  # never augmented
     train_plain_loader = make_loader("train", image_size, batch_size, None)
 
-    # 4. model with a frozen backbone (only the head trains), on the device; loss
-    model = ResNet50Classifier(len(categories), cfg["weights"])
+    # 4. the config's encoder with a frozen backbone (only the head trains), on the device; loss
+    encoder = cfg["encoder"]  # e.g. "resnet50": names the files and the rows' model too
+    model = PRETRAINED_ENCODERS[encoder](len(categories), cfg["weights"])
     model.to(device)
     model.freeze_backbone()
     loss_fn = nn.BCEWithLogitsLoss()
@@ -164,7 +169,7 @@ def main():
             categories,
         )
         stage1_checkpoint = score_and_log(
-            "resnet50_stage1",
+            f"{encoder}_stage1",
             model,
             best_state,
             best_epoch,
@@ -203,9 +208,9 @@ def main():
         cfg["stage2"]["epochs"],
         cfg["threshold"],
         categories,
-    )  # still no recalibrate_loader: layer4's BatchNorm keeps the ImageNet statistics
+    )  # still no recalibrate_loader: the unfrozen parts' BatchNorm keeps the ImageNet statistics
     score_and_log(
-        "resnet50_stage2",
+        f"{encoder}_stage2",
         model,
         best_state,
         best_epoch,

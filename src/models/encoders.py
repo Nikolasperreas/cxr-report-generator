@@ -2,7 +2,7 @@
 
 import torch
 from torch import nn
-from torchvision.models import resnet50
+from torchvision.models import resnet50, mobilenet_v2
 
 # ImageNet statistics per channel (R, G, B): the scale the pretrained weights were trained on
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -57,21 +57,18 @@ class SmallCNN(nn.Module):
     # → flatten              (16, 256)              ← features: 256 numbers per X-ray
 
 
-class ResNet50Classifier(nn.Module):
-    """ResNet50 pretrained on ImageNet: features (N, 2048) + a new linear head giving logits
-    (N, n_classes). Takes our grayscale images (N, 1, H, W) in 0..1, like SmallCNN."""
+class PretrainedClassifier(nn.Module):
+    """An ImageNet-pretrained backbone + a new linear head giving logits (N, n_classes).
+    Takes our grayscale images (N, 1, H, W) in 0..1, like SmallCNN. Parent class of
+    ResNet50Classifier and MobileNetV2Classifier, which only build their backbone."""
 
-    def __init__(self, n_classes, weights):
+    def __init__(self, backbone, n_features, n_classes):
         super().__init__()
-        # 1. the network with its pretrained weights ("IMAGENET1K_V1" from the config; None = random)
-        backbone = resnet50(weights=weights)
-        # 2. remove the ImageNet head (1000 classes): fc now returns its input,
-        #    so the backbone ends with the 2048 averaged features
-        backbone.fc = nn.Identity()
+        # 1. the backbone, already without its ImageNet head: returns (N, n_features)
         self.features = backbone
-        # 3. our head: 2048 features -> n_classes logits
-        self.head = nn.Linear(2048, n_classes)
-        # 4. mean and std as buffers: they move with .to(device) and are saved, never trained;
+        # 2. our head: n_features -> n_classes logits
+        self.head = nn.Linear(n_features, n_classes)
+        # 3. mean and std as buffers: they move with .to(device) and are saved, never trained;
         #    shape (1, 3, 1, 1) so they line up with the channel axis of (N, 3, H, W)
         self.register_buffer("mean", torch.tensor(IMAGENET_MEAN).view(1, 3, 1, 1))
         self.register_buffer("std", torch.tensor(IMAGENET_STD).view(1, 3, 1, 1))
@@ -89,10 +86,11 @@ class ResNet50Classifier(nn.Module):
         """Stage 1: no gradients for the backbone, so only the head trains."""
         self.features.requires_grad_(False)
 
-    def unfreeze(self, stage_names):
-        """Stage 2: these backbone stages train too, e.g. ["layer4"]."""
-        for name in stage_names:
-            getattr(self.features, name).requires_grad_(True)
+    def unfreeze(self, names):
+        """Stage 2: these parts of the backbone train too, by name, dotted when nested:
+        ["layer4"] (ResNet50), ["features.18"] (MobileNetV2)."""
+        for name in names:
+            self.features.get_submodule(name).requires_grad_(True)
 
     def train(self, mode=True):
         """As nn.Module.train, but the backbone's BatchNorm layers always stay in eval mode:
@@ -105,3 +103,39 @@ class ResNet50Classifier(nn.Module):
             if isinstance(layer, nn.BatchNorm2d):
                 layer.eval()
         return self  # nn.Module.train returns the model; keep that behaviour
+
+
+class ResNet50Classifier(PretrainedClassifier):
+    """ResNet50 pretrained on ImageNet: features (N, 2048)."""
+
+    def __init__(self, n_classes, weights):
+        # the backbone goes in a local variable first: nothing may be put on self
+        # before nn.Module.__init__ (inside super().__init__) has run
+        # weights: "IMAGENET1K_V1" from the config; None = random
+        backbone = resnet50(weights=weights)
+        # the ImageNet head is fc = Linear(2048, 1000): read its input size BEFORE removing it
+        n_features = backbone.fc.in_features
+        # remove the ImageNet head: fc now returns its input, the 2048 averaged features
+        backbone.fc = nn.Identity()
+        super().__init__(backbone, n_features, n_classes)
+
+
+class MobileNetV2Classifier(PretrainedClassifier):
+    """MobileNetV2 pretrained on ImageNet: features (N, 1280). Built for phones:
+    depthwise-separable convolutions, ~10x fewer parameters than ResNet50."""
+
+    def __init__(self, n_classes, weights):
+        backbone = mobilenet_v2(weights=weights)
+        # torchvision's ImageNet head is `classifier` = Dropout(0.2) -> Linear(1280, 1000):
+        # read the Linear's input size, then replace the head whole, so no dropout
+        # (like our ResNet head)
+        n_features = backbone.classifier[1].in_features
+        backbone.classifier = nn.Identity()
+        super().__init__(backbone, n_features, n_classes)
+
+
+# the pretrained encoders a config can name (`encoder: resnet50`), for the training script
+PRETRAINED_ENCODERS = {
+    "resnet50": ResNet50Classifier,
+    "mobilenet_v2": MobileNetV2Classifier,
+}
